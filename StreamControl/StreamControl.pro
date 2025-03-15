@@ -35,8 +35,10 @@ macx {
     # Bundle identifier
     QMAKE_TARGET_BUNDLE_PREFIX = com.yourdomain
     
-    # Icon file
-    ICON = streamcontrol.icns
+    # Icon file will be set if the file exists
+    exists($PWD/streamcontrol.icns) {
+        ICON = streamcontrol.icns
+    }
     
     # Specify which frameworks to include
     QMAKE_LFLAGS_SONAME = -Wl,-install_name,@executable_path/../Frameworks/

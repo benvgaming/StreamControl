@@ -16,8 +16,34 @@ jobs:
           arch: 'clang_64'
           modules: 'qtscript'
           
-      - name: Create Info.plist
+      - name: Create Info.plist and icon (if needed)
         run: |
+          # Create a placeholder icon if needed
+          if [ ! -f StreamControl/streamcontrol.icns ]; then
+            echo "Creating placeholder icon file..."
+            
+            # Install required tools
+            brew install imagemagick
+            
+            # Create a simple colored square as placeholder
+            mkdir -p StreamControl/icon.iconset
+            convert -size 1024x1024 xc:skyblue -fill white -gravity center -pointsize 100 -annotate 0 "SC" StreamControl/icon.iconset/icon_512x512@2x.png
+            convert StreamControl/icon.iconset/icon_512x512@2x.png -resize 512x512 StreamControl/icon.iconset/icon_512x512.png
+            convert StreamControl/icon.iconset/icon_512x512@2x.png -resize 256x256 StreamControl/icon.iconset/icon_256x256@2x.png
+            convert StreamControl/icon.iconset/icon_512x512.png -resize 256x256 StreamControl/icon.iconset/icon_256x256.png
+            convert StreamControl/icon.iconset/icon_256x256.png -resize 128x128 StreamControl/icon.iconset/icon_128x128.png
+            convert StreamControl/icon.iconset/icon_128x128.png -resize 64x64 StreamControl/icon.iconset/icon_64x64.png
+            convert StreamControl/icon.iconset/icon_64x64.png -resize 32x32 StreamControl/icon.iconset/icon_32x32.png
+            convert StreamControl/icon.iconset/icon_32x32.png -resize 16x16 StreamControl/icon.iconset/icon_16x16.png
+            
+            # Convert to icns format
+            iconutil -c icns StreamControl/icon.iconset -o StreamControl/streamcontrol.icns
+            
+            # Clean up temporary files
+            rm -rf StreamControl/icon.iconset
+          fi
+          
+          # Create Info.plist
           cat > StreamControl/Info.plist << EOL
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -50,7 +76,7 @@ jobs:
       - name: Build
         run: |
           cd StreamControl
-          qmake "CONFIG+=release" && make -j$(sysctl -n hw.logicalcpu)
+          qmake "CONFIG+=release" "CONFIG+=sdk_no_version_check" && make -j$(sysctl -n hw.logicalcpu)
           
       - name: Deploy Qt dependencies
         run: |
