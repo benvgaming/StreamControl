@@ -1,4 +1,4 @@
-name: Build macOS
+
 on:
   push:
     branches: ["master"]
@@ -138,3 +138,4 @@ jobs:
         with:
           name: StreamControl-installer
           path: StreamControl/StreamControl.dmg
+
