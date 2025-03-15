@@ -1,0 +1,28 @@
+name: Build mac
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          arch: "clang_64"
+          modules: "qtscript"
+
+      - name: Build
+        run: |
+          cd StreamControl
+          qmake && make
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: StreamControl/StreamControl.app
