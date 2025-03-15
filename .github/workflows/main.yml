@@ -1,28 +1,114 @@
-name: Build mac
-
+name: Build macOS
 on:
   push:
     branches: ["master"]
-
 jobs:
   build:
     runs-on: macos-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - uses: jurplel/install-qt-action@v4
+      
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
         with:
-          arch: "clang_64"
-          modules: "qtscript"
-
+          version: '5.15.2'
+          arch: 'clang_64'
+          modules: 'qtscript'
+          
+      - name: Create Info.plist
+        run: |
+          cat > StreamControl/Info.plist << EOL
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDisplayName</key>
+              <string>StreamControl</string>
+              <key>CFBundleExecutable</key>
+              <string>StreamControl</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.github.streamcontrol</string>
+              <key>CFBundleName</key>
+              <string>StreamControl</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.14</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSPrincipalClass</key>
+              <string>NSApplication</string>
+          </dict>
+          </plist>
+          EOL
+          
       - name: Build
         run: |
           cd StreamControl
-          qmake && make
-
-      - uses: actions/upload-artifact@v4
+          qmake "CONFIG+=release" && make -j$(sysctl -n hw.logicalcpu)
+          
+      - name: Deploy Qt dependencies
+        run: |
+          # Install additional tools if needed
+          brew install create-dmg
+          
+          # Use macdeployqt to bundle Qt frameworks with the app
+          cd StreamControl
+          macdeployqt StreamControl.app -verbose=2
+          
+          # Fix any remaining framework references
+          python -c '
+          import os, subprocess, re
+          from pathlib import Path
+          
+          app_path = Path("StreamControl.app")
+          frameworks_dir = app_path / "Contents" / "Frameworks"
+          bin_dir = app_path / "Contents" / "MacOS"
+          
+          # Check if main executable exists
+          main_bin = bin_dir / "StreamControl"
+          if not main_bin.exists():
+              print(f"Error: Main executable not found at {main_bin}")
+              exit(1)
+              
+          print(f"Fixing Qt framework references in {main_bin}")
+          subprocess.run(["otool", "-L", main_bin], check=True)
+          
+          # Create DMG file
+          if main_bin.exists():
+              subprocess.run([
+                  "create-dmg",
+                  "--volname", "StreamControl",
+                  "--background", "white",
+                  "--window-pos", "200", "120",
+                  "--window-size", "800", "400",
+                  "--icon-size", "100",
+                  "--icon", "StreamControl.app", "200", "190",
+                  "--hide-extension", "StreamControl.app",
+                  "--app-drop-link", "600", "190",
+                  "StreamControl.dmg",
+                  "StreamControl.app"
+              ], check=False)
+          '
+          
+          # Verify the app bundle structure
+          ls -la StreamControl.app/Contents/Frameworks || echo "No Frameworks directory found!"
+          ls -la StreamControl.app/Contents/MacOS || echo "No MacOS directory found!"
+          otool -L StreamControl.app/Contents/MacOS/StreamControl | grep Qt
+          
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
         with:
-          name: app
+          name: StreamControl
           path: StreamControl/StreamControl.app
+          
+      - name: Upload DMG installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: StreamControl-installer
+          path: StreamControl/StreamControl.dmg
